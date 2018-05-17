@@ -1,0 +1,17 @@
+{
+  "name": "scalars",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon . -e graphql,js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "graphql": "^0.13.2",
+    "graphql-yoga": "^1.13.1",
+    "nodemon": "^1.17.4"
+  }
+}
