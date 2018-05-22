@@ -1,63 +1,126 @@
 const { GraphQLServer } = require('graphql-yoga')
 const { GraphQLScalarType } = require('graphql')
+const Color = require('color')
+const isColor = require('is-color')
 
 const typeDefs = `
     scalar HEX
+    scalar RGB
+    scalar HSL
 
     type ColorValue {
         hex: HEX!
+        rgb: RGB!
+        hsl: HSL!
     }
 
     type Query {
         allColors: [ColorValue!]!
     }
 
+    union Color = HEX | RGB | HSL 
+
     type Mutation {
         addColor(color: HEX!): ColorValue
     }
 `
 
-const colors = [
-  { "hex": "#4286f4" },
-  { "hex": "#00bfff" },
-  { "hex": "#c2f437" }
-]
+const colors = ["#4286f4", "#00bfff", "#c2f437"]
 
-const isValidHex = value => /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/.test(value)
-// const isValidHSL = value => /^hsl\((0|360|35\d|3[0-4]\d|[12]\d\d|0?\d?\d),(0|100|\d{1,2})%,(0|100|\d{1,2})%\)$/.test(value)
-// const isValidRGB = value => /^rgb\((0|255|25[0-4]|2[0-4]\d|1\d\d|0?\d?\d),(0|255|25[0-4]|2[0-4]\d|1\d\d|0?\d?\d),(0|255|25[0-4]|2[0-4]\d|1\d\d|0?\d?\d)\)$/.test(value)
+// Validation Checks
+const isValidHex = color => (isColor(color) && color.startsWith("#")) ? true : false
+const isValidRGB = color => (isColor(color) && color.startsWith("rgb")) ? true : false
+const isValidHSL = color => (isColor(color) && color.startsWith("hsl")) ? true : false
 
+// Color Conversions
+const hexToRGB = color => Color(color).rgb().string()
+
+var hexToHSL = hex => {
+    var hslObj = Color(hex).hsl()
+    var hslArray = hslObj.color.map((val, i) => 
+        i==0 ? Math.round(val) : `${Math.round(val)}%`
+    )
+    return `hsl(${hslArray[0]}, ${hslArray[1]}, ${hslArray[2]})`
+}
 
 const resolvers = {
     Query: {
         allColors: () => colors
     },
     Mutation: {
-      addColor(root, {color}) {
-        let newColor = {
-            hex: color
-            //rgb: funNpm.toRgb(color),
-            //hsl: funNpm.toHSL(color)
-        }
-        colors.push(newColor)
-        return newColor
-        
+      addColor(root, { color }) {
+        colors.push(color)
+        return color
       }
+    },
+    ColorValue: {
+        hex: _ => _,
+        rgb: _ => _,
+        hsl: _ => _
+    },
+    Color: {
+        __resolveType: value => value.startsWith("#") ? 
+            'HEX' : 
+            value.startsWith("rgb") ?
+                'RGB' : 'HSL'
+
     },
     HEX: new GraphQLScalarType({
       name: 'HEX',
       description: 'A color in hexadecimal format.',
       parseValue: value => isValidHex(value) ?
         value :
-        new Error(`invalid hex color value: ${value}`),
+        new Error(`invalid hex color value when parsing value: ${value}`),
       serialize: value => value,
       parseLiteral: ast => {
           if (!isValidHex(ast.value)) {
-            throw new Error(`invalid hex color value: ${ast.value}`)
+            throw new Error(`invalid hex color value when parsing literal: ${ast.value}`)
           }
           return ast.value
       }
-    })
+    }),
+    RGB: new GraphQLScalarType({
+        name: 'RGB',
+        description: 'A color in rgb format.',
+        parseValue: value => isValidRGB(value) ?
+          value :
+          new Error(`invalid rgb color value when parsing value: ${value}`),
+        serialize: value => hexToRGB(value),
+        parseLiteral: ast => {
+            if (!isValidRGB(ast.value)) {
+              throw new Error(`invalid rgb color value when parsing literal: ${ast.value}`)
+            }
+            return ast.value
+        }
+      }),
+      HSL: new GraphQLScalarType({
+        name: 'HSL',
+        description: 'A color in hsl format.',
+        parseValue: value => isValidHSL(value) ?
+          value :
+          new Error(`invalid hsl color value when parsing value: ${value}`),
+        serialize: value => hexToHSL(value),
+        parseLiteral: ast => {
+            if (!isValidHSL(ast.value)) {
+              throw new Error(`invalid hsl color value when parsing literal: ${ast.value}`)
+            }
+            return ast.value
+        }
+      }),
+    //   ColorName: new GraphQLScalarType({
+    //     name: 'ColorName',
+    //     description: 'A valid HTML color name.',
+    //     parseValue: value => isValidColorName(value) ?
+    //       value :
+    //       new Error(`invalid html color: ${value}`),
+    //     serialize: value => value,
+    //     parseLiteral: ast => {
+    //         if (!isValidColorName(ast.value)) {
+    //           throw new Error(`invalid html color: ${ast.value}`)
+    //         }
+    //         return ast.value
+    //     }
+    //   })
 }
 
 const server = new GraphQLServer({ typeDefs, resolvers })
